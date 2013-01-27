@@ -22,7 +22,8 @@ HINSTANCE hInst;								// current instance
 TCHAR szTitle[MAX_LOADSTRING];					// The title bar text
 TCHAR szWindowClass[MAX_LOADSTRING];			// the main window class name
 
-
+//--------------------------------------------------------------------
+// globals
 BOOL terminate = FALSE;
 HWND g_hwnd = NULL;
 IDXGISwapChain* g_pSwapChain = NULL;
@@ -32,6 +33,7 @@ ID3D10EffectTechnique* g_pEffectTechnique = NULL;
 ID3D10Effect* g_pEffect = NULL;
 ID3D10InputLayout* g_pVertexLayout = NULL;
 ID3D10Buffer*	g_pVertexBuffer = NULL;
+ID3D10Buffer*               g_pIndexBuffer = NULL;
 
 ID3D10EffectMatrixVariable* g_pWorld = NULL;
 ID3D10EffectMatrixVariable* g_pView = NULL;
@@ -42,7 +44,7 @@ D3DXMATRIX g_viewMatrix;
 D3DXMATRIX g_projectionMatrix;
 
 float rot = 0.0f;
-
+//---------------------------------------------------------------------
 
 
 // Forward declarations of functions included in this code module:
@@ -191,6 +193,8 @@ void CleanupD3D()
 
 	if (g_pSwapChain) g_pSwapChain->Release();
 
+	if( g_pIndexBuffer ) g_pIndexBuffer->Release();
+
 	if (g_pVertexBuffer) g_pVertexBuffer->Release();
 
 	if (g_pVertexLayout) g_pVertexLayout->Release();
@@ -257,7 +261,7 @@ BOOL InitialiseD3D(HWND hwnd, int width, int height)
 #if defined(DEBUG) || defined(_DEBUG)
 	shaderFlags |= D3D10_SHADER_DEBUG;
 #endif
-
+	// what shader is this?
 	if(FAILED(D3DX10CreateEffectFromFile(
 		L"basic.fx", 
 		NULL, 
@@ -302,25 +306,23 @@ BOOL InitialiseD3D(HWND hwnd, int width, int height)
 
 	g_pDevice->IASetInputLayout(g_pVertexLayout);
 
+
+	// vertex buffer
 	Vertex vertices[] = 
 	{
-		{D3DXVECTOR3(0.0f, 1.0f, 0.0f), D3DXVECTOR4(1.0f,0.0f,0.0f,1.0f)},
-		{D3DXVECTOR3(-1.0f, -1.0f, 1.0f), D3DXVECTOR4(0.0f,1.0f,0.0f,1.0f)},
-		{D3DXVECTOR3(1.0f, -1.0f, 1.0f), D3DXVECTOR4(0.0f,0.0f,1.0f,1.0f)},
-		{D3DXVECTOR3(0.0f, 1.0f, 0.0f), D3DXVECTOR4(1.0f,0.0f,0.0f,1.0f)},
-		{D3DXVECTOR3(1.0f, -1.0f, 1.0f), D3DXVECTOR4(0.0f,0.0f,1.0f,1.0f)},
-		{D3DXVECTOR3(1.0f, -1.0f, -1.0f), D3DXVECTOR4(0.0f,1.0f,0.0f,1.0f)},
-		{D3DXVECTOR3(0.0f, 1.0f, 0.0f), D3DXVECTOR4(1.0f,0.0f,0.0f,1.0f)},
-		{D3DXVECTOR3(1.0f, -1.0f, -1.0f), D3DXVECTOR4(0.0f,1.0f,0.0f,1.0f)},
-		{D3DXVECTOR3(-1.0f, -1.0f, -1.0f), D3DXVECTOR4(0.0f,0.0f,1.0f,1.0f)},
-		{D3DXVECTOR3(0.0f, 1.0f, 0.0f), D3DXVECTOR4(1.0f,0.0f,0.0f,1.0f)},
-		{D3DXVECTOR3(-1.0f, -1.0f, -1.0f), D3DXVECTOR4(0.0f,0.0f,1.0f,1.0f)},
-		{D3DXVECTOR3(-1.0f, -1.0f, 1.0f), D3DXVECTOR4(0.0f,1.0f,0.0f,1.0f)}
+		{ D3DXVECTOR3( -1.0f, 1.0f, -1.0f ), D3DXVECTOR4( 0.0f, 0.0f, 1.0f, 1.0f ) },
+        { D3DXVECTOR3( 1.0f, 1.0f, -1.0f ), D3DXVECTOR4( 0.0f, 1.0f, 0.0f, 1.0f ) },
+        { D3DXVECTOR3( 1.0f, 1.0f, 1.0f ), D3DXVECTOR4( 0.0f, 1.0f, 1.0f, 1.0f ) },
+        { D3DXVECTOR3( -1.0f, 1.0f, 1.0f ), D3DXVECTOR4( 1.0f, 0.0f, 0.0f, 1.0f ) },
+        { D3DXVECTOR3( -1.0f, -1.0f, -1.0f ), D3DXVECTOR4( 1.0f, 0.0f, 1.0f, 1.0f ) },
+        { D3DXVECTOR3( 1.0f, -1.0f, -1.0f ), D3DXVECTOR4( 1.0f, 1.0f, 0.0f, 1.0f ) },
+        { D3DXVECTOR3( 1.0f, -1.0f, 1.0f ), D3DXVECTOR4( 1.0f, 1.0f, 1.0f, 1.0f ) },
+        { D3DXVECTOR3( -1.0f, -1.0f, 1.0f ), D3DXVECTOR4( 0.0f, 0.0f, 0.0f, 1.0f ) },
 	};
 
 	D3D10_BUFFER_DESC bd;
     bd.Usage = D3D10_USAGE_DEFAULT;
-    bd.ByteWidth = sizeof( Vertex ) * 12;
+    bd.ByteWidth = sizeof( Vertex ) * 8;
     bd.BindFlags = D3D10_BIND_VERTEX_BUFFER;
     bd.CPUAccessFlags = 0;
     bd.MiscFlags = 0;
@@ -336,6 +338,45 @@ BOOL InitialiseD3D(HWND hwnd, int width, int height)
     UINT stride = sizeof( Vertex );
     UINT offset = 0;
     g_pDevice->IASetVertexBuffers( 0, 1, &g_pVertexBuffer, &stride, &offset );
+
+	// Create index buffer
+    DWORD indices[] =
+    {
+        3,1,0,
+        2,1,3,
+
+        0,5,4,
+        1,5,0,
+
+        3,4,7,
+        0,4,3,
+
+        1,6,5,
+        2,6,1,
+
+        2,7,6,
+        3,7,2,
+
+        6,4,5,
+        7,4,6,
+    };
+    bd.Usage = D3D10_USAGE_DEFAULT;
+    bd.ByteWidth = sizeof( DWORD ) * 36;        // 36 vertices needed for 12 triangles in a triangle list
+    bd.BindFlags = D3D10_BIND_INDEX_BUFFER;
+    bd.CPUAccessFlags = 0;
+    bd.MiscFlags = 0;
+    InitData.pSysMem = indices;
+   	if ( FAILED(g_pDevice->CreateBuffer( &bd, &InitData, &g_pIndexBuffer )) )
+	{
+		return FALSE;
+	}
+
+
+	// sets index buffer
+	g_pDevice->IASetIndexBuffer( g_pIndexBuffer, DXGI_FORMAT_R32_UINT, 0 );
+    
+
+	//no primitve topology? in drawscene
 
 	D3DXMatrixIdentity(&g_worldMatrix);
 	D3DXMatrixIdentity(&g_viewMatrix);
@@ -391,7 +432,7 @@ BOOL DrawScene()
     for( UINT p = 0; p < techDesc.Passes; ++p )
     {
 		g_pEffectTechnique->GetPassByIndex( p )->Apply( 0 );
-        g_pDevice->Draw(12, 0);
+		g_pDevice->DrawIndexed(36, 0,0);
     }
 
 	g_pSwapChain->Present(0,0);
