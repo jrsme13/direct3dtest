@@ -7,6 +7,7 @@
 #include "D3DSample.h"
 #include "resource.h"
 #include <windows.h>
+#include <d3dx10.h>
 
 #pragma comment (lib, "d3d10.lib")
 #pragma comment (lib, "d3dx10.lib")
