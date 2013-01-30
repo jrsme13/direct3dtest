@@ -5,6 +5,8 @@
 #include <d3d10.h>
 #include <D3DX10.h>
 #include "D3DSample.h"
+#include "resource.h"
+#include <windows.h>
 
 #pragma comment (lib, "d3d10.lib")
 #pragma comment (lib, "d3dx10.lib")
@@ -14,7 +16,7 @@
 typedef struct
 {
 	D3DXVECTOR3 position;
-	D3DXVECTOR4 colour;
+	D3DXVECTOR3 Normal;
 } Vertex;
 
 // Global Variables:
@@ -33,13 +35,20 @@ ID3D10EffectTechnique* g_pEffectTechnique = NULL;
 ID3D10Effect* g_pEffect = NULL;
 ID3D10InputLayout* g_pVertexLayout = NULL;
 ID3D10Buffer*	g_pVertexBuffer = NULL;
+ID3D10EffectTechnique*      g_pTechniqueRender = NULL;
+ID3D10EffectTechnique*      g_pTechniqueRenderLight = NULL;
 ID3D10Buffer*               g_pIndexBuffer = NULL;
-
+ID3D10Texture2D*            g_pDepthStencil = NULL;
+ID3D10DepthStencilView*     g_pDepthStencilView = NULL;
 ID3D10EffectMatrixVariable* g_pWorld = NULL;
 ID3D10EffectMatrixVariable* g_pView = NULL;
 ID3D10EffectMatrixVariable* g_pProjection = NULL;
+ID3D10EffectVectorVariable* g_pLightDirVariable = NULL;
+ID3D10EffectVectorVariable* g_pLightColorVariable = NULL;
+ID3D10EffectVectorVariable* g_pOutputColorVariable = NULL;
 
 D3DXMATRIX g_worldMatrix;
+D3DXMATRIX g_worldMatrix2;
 D3DXMATRIX g_viewMatrix;
 D3DXMATRIX g_projectionMatrix;
 
@@ -199,6 +208,10 @@ void CleanupD3D()
 
 	if (g_pVertexLayout) g_pVertexLayout->Release();
 
+	if( g_pDepthStencil ) g_pDepthStencil->Release();
+
+    if( g_pDepthStencilView ) g_pDepthStencilView->Release();
+
 	if (g_pDevice) g_pDevice->Release();
 }
 
@@ -253,6 +266,37 @@ BOOL InitialiseD3D(HWND hwnd, int width, int height)
 
     g_pDevice->OMSetRenderTargets( 1, &g_pRenderTargetView, NULL );
 
+	// Create depth stencil texture (depth buffer)
+    D3D10_TEXTURE2D_DESC descDepth;
+    descDepth.Width = width;
+    descDepth.Height = height;
+    descDepth.MipLevels = 1;
+    descDepth.ArraySize = 1;
+    descDepth.Format = DXGI_FORMAT_D32_FLOAT;
+    descDepth.SampleDesc.Count = 1;
+    descDepth.SampleDesc.Quality = 0;
+    descDepth.Usage = D3D10_USAGE_DEFAULT;
+    descDepth.BindFlags = D3D10_BIND_DEPTH_STENCIL;
+    descDepth.CPUAccessFlags = 0;
+    descDepth.MiscFlags = 0;
+    if ( FAILED(g_pDevice->CreateTexture2D( &descDepth, NULL, &g_pDepthStencil )))
+	{
+		return FALSE;
+	}
+
+    // Create the depth stencil view
+    D3D10_DEPTH_STENCIL_VIEW_DESC descDSV;
+    descDSV.Format = descDepth.Format;
+    descDSV.ViewDimension = D3D10_DSV_DIMENSION_TEXTURE2D;
+    descDSV.Texture2D.MipSlice = 0;
+    if ( FAILED(g_pDevice->CreateDepthStencilView( g_pDepthStencil, &descDSV, &g_pDepthStencilView )))
+	{
+		return FALSE;
+	}
+    
+
+    g_pDevice->OMSetRenderTargets( 1, &g_pRenderTargetView, g_pDepthStencilView );
+
     D3D10_VIEWPORT vp = {0, 0, width, height, 0, 1};
     g_pDevice->RSSetViewports( 1, &vp );
     
@@ -281,16 +325,21 @@ BOOL InitialiseD3D(HWND hwnd, int width, int height)
 		return FALSE;
 	}
 
+	//obtaining the techniques
 	g_pEffectTechnique = g_pEffect->GetTechniqueByName("Render");
+	g_pTechniqueRenderLight = g_pEffect->GetTechniqueByName( "RenderLight" );
 
 	g_pWorld = g_pEffect->GetVariableByName("World")->AsMatrix();
 	g_pView = g_pEffect->GetVariableByName("View")->AsMatrix();
 	g_pProjection = g_pEffect->GetVariableByName("Projection")->AsMatrix();
+	g_pLightDirVariable = g_pEffect->GetVariableByName( "vLightDir" )->AsVector();
+    g_pLightColorVariable = g_pEffect->GetVariableByName( "vLightColor" )->AsVector();
+    g_pOutputColorVariable = g_pEffect->GetVariableByName( "vOutputColor" )->AsVector();
 
 	D3D10_INPUT_ELEMENT_DESC layout[] = 
 	{
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D10_INPUT_PER_VERTEX_DATA, 0},
-		{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D10_INPUT_PER_VERTEX_DATA, 0},
+		{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D10_INPUT_PER_VERTEX_DATA, 0},
 	};
 
 	 UINT numElements = sizeof( layout ) / sizeof( layout[0] );
@@ -310,19 +359,40 @@ BOOL InitialiseD3D(HWND hwnd, int width, int height)
 	// vertex buffer
 	Vertex vertices[] = 
 	{
-		{ D3DXVECTOR3( -1.0f, 1.0f, -1.0f ), D3DXVECTOR4( 0.0f, 0.0f, 1.0f, 1.0f ) },
-        { D3DXVECTOR3( 1.0f, 1.0f, -1.0f ), D3DXVECTOR4( 0.0f, 1.0f, 0.0f, 1.0f ) },
-        { D3DXVECTOR3( 1.0f, 1.0f, 1.0f ), D3DXVECTOR4( 0.0f, 1.0f, 1.0f, 1.0f ) },
-        { D3DXVECTOR3( -1.0f, 1.0f, 1.0f ), D3DXVECTOR4( 1.0f, 0.0f, 0.0f, 1.0f ) },
-        { D3DXVECTOR3( -1.0f, -1.0f, -1.0f ), D3DXVECTOR4( 1.0f, 0.0f, 1.0f, 1.0f ) },
-        { D3DXVECTOR3( 1.0f, -1.0f, -1.0f ), D3DXVECTOR4( 1.0f, 1.0f, 0.0f, 1.0f ) },
-        { D3DXVECTOR3( 1.0f, -1.0f, 1.0f ), D3DXVECTOR4( 1.0f, 1.0f, 1.0f, 1.0f ) },
-        { D3DXVECTOR3( -1.0f, -1.0f, 1.0f ), D3DXVECTOR4( 0.0f, 0.0f, 0.0f, 1.0f ) },
+		{ D3DXVECTOR3( -1.0f, 1.0f, -1.0f ), D3DXVECTOR3( 0.0f, 1.0f, 0.0f ) },
+        { D3DXVECTOR3( 1.0f, 1.0f, -1.0f ), D3DXVECTOR3( 0.0f, 1.0f, 0.0f ) },
+        { D3DXVECTOR3( 1.0f, 1.0f, 1.0f ), D3DXVECTOR3( 0.0f, 1.0f, 0.0f ) },
+        { D3DXVECTOR3( -1.0f, 1.0f, 1.0f ), D3DXVECTOR3( 0.0f, 1.0f, 0.0f ) },
+
+        { D3DXVECTOR3( -1.0f, -1.0f, -1.0f ), D3DXVECTOR3( 0.0f, -1.0f, 0.0f ) },
+        { D3DXVECTOR3( 1.0f, -1.0f, -1.0f ), D3DXVECTOR3( 0.0f, -1.0f, 0.0f ) },
+        { D3DXVECTOR3( 1.0f, -1.0f, 1.0f ), D3DXVECTOR3( 0.0f, -1.0f, 0.0f ) },
+        { D3DXVECTOR3( -1.0f, -1.0f, 1.0f ), D3DXVECTOR3( 0.0f, -1.0f, 0.0f ) },
+
+        { D3DXVECTOR3( -1.0f, -1.0f, 1.0f ), D3DXVECTOR3( -1.0f, 0.0f, 0.0f ) },
+        { D3DXVECTOR3( -1.0f, -1.0f, -1.0f ), D3DXVECTOR3( -1.0f, 0.0f, 0.0f ) },
+        { D3DXVECTOR3( -1.0f, 1.0f, -1.0f ), D3DXVECTOR3( -1.0f, 0.0f, 0.0f ) },
+        { D3DXVECTOR3( -1.0f, 1.0f, 1.0f ), D3DXVECTOR3( -1.0f, 0.0f, 0.0f ) },
+
+        { D3DXVECTOR3( 1.0f, -1.0f, 1.0f ), D3DXVECTOR3( 1.0f, 0.0f, 0.0f ) },
+        { D3DXVECTOR3( 1.0f, -1.0f, -1.0f ), D3DXVECTOR3( 1.0f, 0.0f, 0.0f ) },
+        { D3DXVECTOR3( 1.0f, 1.0f, -1.0f ), D3DXVECTOR3( 1.0f, 0.0f, 0.0f ) },
+        { D3DXVECTOR3( 1.0f, 1.0f, 1.0f ), D3DXVECTOR3( 1.0f, 0.0f, 0.0f ) },
+
+        { D3DXVECTOR3( -1.0f, -1.0f, -1.0f ), D3DXVECTOR3( 0.0f, 0.0f, -1.0f ) },
+        { D3DXVECTOR3( 1.0f, -1.0f, -1.0f ), D3DXVECTOR3( 0.0f, 0.0f, -1.0f ) },
+        { D3DXVECTOR3( 1.0f, 1.0f, -1.0f ), D3DXVECTOR3( 0.0f, 0.0f, -1.0f ) },
+        { D3DXVECTOR3( -1.0f, 1.0f, -1.0f ), D3DXVECTOR3( 0.0f, 0.0f, -1.0f ) },
+
+        { D3DXVECTOR3( -1.0f, -1.0f, 1.0f ), D3DXVECTOR3( 0.0f, 0.0f, 1.0f ) },
+        { D3DXVECTOR3( 1.0f, -1.0f, 1.0f ), D3DXVECTOR3( 0.0f, 0.0f, 1.0f ) },
+        { D3DXVECTOR3( 1.0f, 1.0f, 1.0f ), D3DXVECTOR3( 0.0f, 0.0f, 1.0f ) },
+        { D3DXVECTOR3( -1.0f, 1.0f, 1.0f ), D3DXVECTOR3( 0.0f, 0.0f, 1.0f ) },
 	};
 
 	D3D10_BUFFER_DESC bd;
     bd.Usage = D3D10_USAGE_DEFAULT;
-    bd.ByteWidth = sizeof( Vertex ) * 8;
+    bd.ByteWidth = sizeof( Vertex ) * 24;
     bd.BindFlags = D3D10_BIND_VERTEX_BUFFER;
     bd.CPUAccessFlags = 0;
     bd.MiscFlags = 0;
@@ -345,20 +415,20 @@ BOOL InitialiseD3D(HWND hwnd, int width, int height)
         3,1,0,
         2,1,3,
 
-        0,5,4,
-        1,5,0,
-
-        3,4,7,
-        0,4,3,
-
-        1,6,5,
-        2,6,1,
-
-        2,7,6,
-        3,7,2,
-
         6,4,5,
         7,4,6,
+
+        11,9,8,
+        10,9,11,
+
+        14,12,13,
+        15,12,14,
+
+        19,17,16,
+        18,17,19,
+
+        22,20,21,
+        23,20,22
     };
     bd.Usage = D3D10_USAGE_DEFAULT;
     bd.ByteWidth = sizeof( DWORD ) * 36;        // 36 vertices needed for 12 triangles in a triangle list
@@ -379,6 +449,7 @@ BOOL InitialiseD3D(HWND hwnd, int width, int height)
 	//no primitve topology? in drawscene
 
 	D3DXMatrixIdentity(&g_worldMatrix);
+	D3DXMatrixIdentity(&g_worldMatrix2);
 	D3DXMatrixIdentity(&g_viewMatrix);
 	D3DXMatrixIdentity(&g_projectionMatrix);
 
@@ -394,7 +465,7 @@ BOOL InitialiseD3D(HWND hwnd, int width, int height)
 BOOL Resize(int width, int height)
 {
 	//g_pSwapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN
-
+	//perspective projection
 	D3DXMatrixPerspectiveFovLH( &g_projectionMatrix, 
 		(float)D3DX_PI*0.33f,
 		(float)width/(float)height,
@@ -408,9 +479,12 @@ BOOL DrawScene()
 	float bgColour[] = {0.0f, 0.0f, 0.0f, 1.0f};
 
 	D3D10_TECHNIQUE_DESC technique;
-
+	//clear backbuff
 	g_pDevice->ClearRenderTargetView( g_pRenderTargetView, bgColour );
-
+	 //
+    // Clear the depth buffer to 1.0 (max depth)
+    //
+    g_pDevice->ClearDepthStencilView( g_pDepthStencilView, D3D10_CLEAR_DEPTH, 1.0f, 0 );
 	
 	g_pDevice->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
@@ -420,13 +494,56 @@ BOOL DrawScene()
 	{
 		rot = 0.0f;
 	}
-
+	//first cube rotate
 	D3DXMatrixRotationY(&g_worldMatrix, rot);
+
+	 // 2nd Cube:  Rotate around origin
+   /* D3DXMATRIX mTranslate;
+    D3DXMATRIX mOrbit;
+    D3DXMATRIX mSpin;
+    D3DXMATRIX mScale;
+    D3DXMatrixRotationZ( &mSpin, -rot );
+    D3DXMatrixRotationY( &mOrbit, -rot * 2.0f );
+    D3DXMatrixTranslation( &mTranslate, -4.0f, 0.0f, 0.0f );
+    D3DXMatrixScaling( &mScale, 0.3f, 0.3f, 0.3f );
+
+    D3DXMatrixMultiply( &g_worldMatrix2, &mScale, &mSpin );
+    D3DXMatrixMultiply( &g_worldMatrix2, &g_worldMatrix2, &mTranslate );
+    D3DXMatrixMultiply( &g_worldMatrix2, &g_worldMatrix2, &mOrbit );*/
 	
+	//varaibles first cube
 	g_pWorld->SetMatrix((float*)&g_worldMatrix);
 	g_pView->SetMatrix((float*)&g_viewMatrix);
 	g_pProjection->SetMatrix((float*)&g_projectionMatrix);
 
+
+
+	// Setup our lighting parameters
+    D3DXVECTOR4 vLightDirs[2] =
+    {
+        D3DXVECTOR4( -0.577f, 0.577f, -0.577f, 1.0f ),
+        D3DXVECTOR4( 0.0f, 0.0f, -1.0f, 1.0f ),
+    };
+    D3DXVECTOR4 vLightColors[2] =
+    {
+        D3DXVECTOR4( 0.5f, 0.5f, 0.5f, 1.0f ),
+        D3DXVECTOR4( 0.5f, 0.0f, 0.0f, 1.0f )
+    };
+
+	//rotate the second light around the origin
+    D3DXMATRIX mRotate;
+    D3DXVECTOR4 vOutDir;
+    D3DXMatrixRotationY( &mRotate, -2.0f * rot );
+    D3DXVec3Transform( &vLightDirs[1], ( D3DXVECTOR3* )&vLightDirs[1], &mRotate );
+
+	//
+    // Update lighting variables
+    //
+    g_pLightDirVariable->SetFloatVectorArray( ( float* )vLightDirs, 0, 2 );
+    g_pLightColorVariable->SetFloatVectorArray( ( float* )vLightColors, 0, 2 );
+
+
+	//render 1st cube
 	D3D10_TECHNIQUE_DESC techDesc;
     g_pEffectTechnique->GetDesc( &techDesc );
     for( UINT p = 0; p < techDesc.Passes; ++p )
@@ -435,6 +552,48 @@ BOOL DrawScene()
 		g_pDevice->DrawIndexed(36, 0,0);
     }
 
+	//
+    // Render each light
+    //
+    for( int m = 0; m < 2; m++ )
+    {
+        D3DXMATRIX mLight;
+        D3DXMATRIX mLightScale;
+        D3DXVECTOR3 vLightPos = vLightDirs[m] * 5.0f;
+        D3DXMatrixTranslation( &mLight, vLightPos.x, vLightPos.y, vLightPos.z );
+        D3DXMatrixScaling( &mLightScale, 0.2f, 0.2f, 0.2f );
+        mLight = mLightScale * mLight;
+
+        // Update the world variable to reflect the current light
+        g_pWorld->SetMatrix( ( float* )&mLight );
+        g_pOutputColorVariable->SetFloatVector( ( float* )&vLightColors[m] );
+
+        g_pTechniqueRenderLight->GetDesc( &techDesc );
+        for( UINT p = 0; p < techDesc.Passes; ++p )
+        {
+            g_pTechniqueRenderLight->GetPassByIndex( p )->Apply( 0 );
+            g_pDevice->DrawIndexed( 36, 0, 0 );
+        }
+
+    }
+
+
+    // Update variables for the second cube
+    //
+    //g_pWorld->SetMatrix( ( float* )&g_worldMatrix2 );
+    //g_pView->SetMatrix( ( float* )&g_viewMatrix );
+    //g_pProjection->SetMatrix( ( float* )&g_projectionMatrix );
+
+    ////
+    //// Render the second cube
+    ////
+    //for( UINT p = 0; p < techDesc.Passes; ++p )
+    //{
+    //    g_pEffectTechnique->GetPassByIndex( p )->Apply( 0 );
+    //    g_pDevice->DrawIndexed( 36, 0, 0 );
+    //}
+
+	//back buff swap
 	g_pSwapChain->Present(0,0);
 	return TRUE;
 }

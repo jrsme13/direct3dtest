@@ -1,4 +1,4 @@
-﻿Build started 27/01/2013 22:10:13.
+﻿Build started 30/01/2013 22:17:59.
      1>Project "C:\Users\James\Documents\GitHub\direct3dtest\D3DSample\D3DSample\D3DSample.vcxproj" on node 2 (build target(s)).
      1>InitializeBuildStatus:
          Creating "Debug\D3DSample.unsuccessfulbuild" because "AlwaysCreate" was specified.
@@ -6,9 +6,9 @@
          All outputs are up-to-date.
          c:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\bin\CL.exe /c /I"C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\\Include" /ZI /nologo /W3 /WX- /Od /Oy- /D WIN32 /D _DEBUG /D _WINDOWS /D _UNICODE /D UNICODE /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Yu"StdAfx.h" /Fp"Debug\D3DSample.pch" /Fo"Debug\\" /Fd"Debug\vc100.pdb" /Gd /TP /analyze- /errorReport:prompt D3DSample.cpp
          D3DSample.cpp
-     1>c:\users\james\documents\github\direct3dtest\d3dsample\d3dsample\d3dsample.cpp(410): warning C4101: 'technique' : unreferenced local variable
-     1>c:\users\james\documents\github\direct3dtest\d3dsample\d3dsample\d3dsample.cpp(455): warning C4101: 'ps' : unreferenced local variable
-     1>c:\users\james\documents\github\direct3dtest\d3dsample\d3dsample\d3dsample.cpp(456): warning C4101: 'hdc' : unreferenced local variable
+     1>c:\users\james\documents\github\direct3dtest\d3dsample\d3dsample\d3dsample.cpp(481): warning C4101: 'technique' : unreferenced local variable
+     1>c:\users\james\documents\github\direct3dtest\d3dsample\d3dsample\d3dsample.cpp(614): warning C4101: 'ps' : unreferenced local variable
+     1>c:\users\james\documents\github\direct3dtest\d3dsample\d3dsample\d3dsample.cpp(615): warning C4101: 'hdc' : unreferenced local variable
        ResourceCompile:
          All outputs are up-to-date.
        ManifestResourceCompile:
@@ -31,4 +31,4 @@
 
 Build succeeded.
 
-Time Elapsed 00:00:00.69
+Time Elapsed 00:00:01.01
