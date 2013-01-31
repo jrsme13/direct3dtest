@@ -246,6 +246,7 @@ BOOL InitialiseD3D(HWND hwnd, int width, int height)
             0, D3D10_SDK_VERSION, &swapChainDesc, 
             &g_pSwapChain, &g_pDevice ) ) )
         {
+			MessageBox(hwnd,NULL,L"D3D10CreateDeviceAndSwapChain Failed",MB_OK);
             return FALSE;
         }
     }
@@ -254,12 +255,14 @@ BOOL InitialiseD3D(HWND hwnd, int width, int height)
     if( FAILED( g_pSwapChain->GetBuffer( 0, __uuidof( ID3D10Texture2D ), 
               (LPVOID*)&pBackBuffer ) ) )
     {
+		MessageBox(hwnd,NULL,L"g_pSwapChain->GetBuffer Failed",MB_OK);
         return FALSE;
     }
 
     if(FAILED( g_pDevice->CreateRenderTargetView( pBackBuffer, 
                NULL, &g_pRenderTargetView )))
     {
+		MessageBox(hwnd,NULL,L"g_pDevice->CreateRenderTargetView Failed",MB_OK);
         return FALSE;
     }
 
@@ -282,6 +285,7 @@ BOOL InitialiseD3D(HWND hwnd, int width, int height)
     descDepth.MiscFlags = 0;
     if ( FAILED(g_pDevice->CreateTexture2D( &descDepth, NULL, &g_pDepthStencil )))
 	{
+		MessageBox(hwnd,NULL,L"g_pDevice->CreateTexture2D Failed",MB_OK);
 		return FALSE;
 	}
 
@@ -292,6 +296,7 @@ BOOL InitialiseD3D(HWND hwnd, int width, int height)
     descDSV.Texture2D.MipSlice = 0;
     if ( FAILED(g_pDevice->CreateDepthStencilView( g_pDepthStencil, &descDSV, &g_pDepthStencilView )))
 	{
+		MessageBox(hwnd,NULL,L"g_pDevice->CreateRenderTargetView Failed",MB_OK);
 		return FALSE;
 	}
     
@@ -323,6 +328,7 @@ BOOL InitialiseD3D(HWND hwnd, int width, int height)
 		)
 	)
 	{
+		MessageBox(hwnd,L"D3DX10CreateEffectFromFile Failed",L"D3DX10CreateEffectFromFile Failed",MB_OK);
 		return FALSE;
 	}
 
@@ -455,7 +461,7 @@ BOOL InitialiseD3D(HWND hwnd, int width, int height)
 	D3DXMatrixIdentity(&g_projectionMatrix);
 
 	// Initialize the view matrix
-    D3DXVECTOR3 Eye( 0.0f, 0.0f, 5.0f );
+    D3DXVECTOR3 Eye( 0.0f, 3.0f, 5.0f );
     D3DXVECTOR3 At( 0.0f, 0.0f, 0.0f );
     D3DXVECTOR3 Up( 0.0f, 1.0f, 0.0f );
     D3DXMatrixLookAtLH( &g_viewMatrix, &Eye, &At, &Up );
