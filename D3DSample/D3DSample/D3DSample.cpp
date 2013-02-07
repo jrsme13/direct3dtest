@@ -502,7 +502,7 @@ BOOL DrawScene()
 		rot = 0.0f;
 	}
 	//first cube rotate
-	D3DXMatrixRotationY(&g_worldMatrix, rot);
+	D3DXMatrixRotationY(&g_worldMatrix, 20);
 
 	 // 2nd Cube:  Rotate around origin
    /* D3DXMATRIX mTranslate;
